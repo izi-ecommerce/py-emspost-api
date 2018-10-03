@@ -8,7 +8,7 @@
 
 import os
 import json
-from urllib import urlencode
+from urllib.parse import urlencode
 
 import pycurl
 
@@ -30,18 +30,18 @@ API_METHODS = {'echo'       : 'ems.test.echo',
                'calculate'  : 'ems.calculate'}
 
 # Source: http://www.emspost.ru/ru/corp_clients/dogovor_docements/api/
-API_CALC_OPTIONS = { 
-# from (обязательный, кроме международной доставки) — идентификатор пункта отправления. 
+API_CALC_OPTIONS = {
+# from (обязательный, кроме международной доставки) — идентификатор пункта отправления.
 #    Для получения списка допустимых идентификаторов используется метод ems.get.locations.
     'from' : 0,
-# to (обязательный) - идентификатор пункта назначения. 
+# to (обязательный) - идентификатор пункта назначения.
 #    Для получения списка допустимых идентификаторов используется метод ems.get.locations.
     'to' : 0,
-# weight (обязательный) — вес отправления. 
-#    Значение не должно превышать максимально допустимый вес отправления, 
+# weight (обязательный) — вес отправления.
+#    Значение не должно превышать максимально допустимый вес отправления,
 #    значение которого возвращается методом ems.get.max.weight.
-    'weight' : 1, # kg 
-# type (обязательный для международной доставки) — тип международного отправления. 
+    'weight' : 1, # kg
+# type (обязательный для международной доставки) — тип международного отправления.
 #    Допустимые значения:
 #    doc — документы (до 2-х килограм),
 #    att — товарные вложения.
@@ -51,7 +51,7 @@ API_CALC_OPTIONS = {
 def curl_setopt_array(curl, opts):
     for key in opts:
         curl.setopt(getattr(curl, key), opts[key])
-        
+
 class EmsAPIException(Exception):
     """
     EmsAPI class can raise this exception
@@ -60,7 +60,7 @@ class EmsAPIException(Exception):
 
 class EmsAPI(object):
     """
-    Main EMS API SDK class. 
+    Main EMS API SDK class.
     Handles calls to the EMSPost API via pycURL.
     """
 
@@ -69,13 +69,13 @@ class EmsAPI(object):
 
     # CURL options overrides
     __curl_opts = {}
-    
+
     # CURL instance
     __ch = None;
-    
+
     # CURL IO buffer
     __buffer = None
-    
+
     def __init__(self, api_url=None, curl_opts={}):
         """
         API class constructor.
@@ -84,7 +84,7 @@ class EmsAPI(object):
         self.__api_url = api_url or API_BASE_URL
         self.__curl_opts = curl_opts
         self.__buffer = BytesIO()
-  
+
     def __init_curl(self):
        self.__ch = pycurl.Curl()
        opts = {'WRITEDATA':  self.__buffer,
@@ -97,7 +97,7 @@ class EmsAPI(object):
     def __construct_api_url(self, method, data):
         data['method'] = API_METHODS[method]
         return '%s?%s' % (self.__api_url, urlencode(data))
-    
+
     def filter(self, data, predicate=lambda k, v: True):
         """
             Attemp to mimic django's queryset.filter() for simple lists
@@ -109,8 +109,8 @@ class EmsAPI(object):
              for k, v in d.items():
                    if predicate(k, v):
                         yield d
-    
-    
+
+
     def close(self):
         if self.__ch:
             self.__ch.close()
@@ -119,14 +119,14 @@ class EmsAPI(object):
 
     def call(self, method, data, plain=False):
         """
-            Makes a call to remote API. 
+            Makes a call to remote API.
         """
         result = None
         if plain:
             data['plain'] = plain
         #if self.__buffer.closed:
         #    self.__buffer = BytesIO()
-                    
+
         if self.__ch is None:
             self.__init_curl()
 
@@ -142,17 +142,17 @@ class EmsAPI(object):
             raise EmsAPIException(self.__ch.c.errstr())
         else:
             http_code = self.__ch.getinfo(pycurl.HTTP_CODE)
-            if http_code <> 200:
+            if http_code != 200:
                 raise EmsAPIException("HTTP Error code: %d" % http_code)
             else:
                 result = json.loads(result)
         self.__buffer.truncate(0)
         self.__buffer.seek(0)
         return result
-    
+
     def is_online(self):
         """
-            Check if API is online or not. 
+            Check if API is online or not.
             Returns boolean.
         """
         res = self.call('echo', {})
@@ -165,7 +165,7 @@ class EmsAPI(object):
     def findbytitle(self, title=None, type='cities'):
         """
         Finds EMS city code by title or returns all of them.
-        
+
         Return tuple (result, error), where result is a list of tuples
         (id, title, type)
         Use type='russia' and None title to get all codes or '<title>', 'regions'
@@ -181,9 +181,9 @@ class EmsAPI(object):
             if res['rsp'].get('stat', False) == 'ok':
                 locs = res['rsp']['locations']
                 if title:
-                    locs = self.filter(locs, 
+                    locs = self.filter(locs,
                                        lambda k,v: k == u'name' and title.lower() in v.lower() )
-            
+
                 for city in locs:
                     result.append((city['value'],
                                    city['name'],
@@ -200,7 +200,7 @@ class EmsAPI(object):
 
     def get_branches(self):
         """
-        Returns a tuple of (list, error) of all EMS regions 
+        Returns a tuple of (list, error) of all EMS regions
         and cities where list of tuples (id, title, type).
         """
         return self.findbytitle('','russia')
@@ -212,21 +212,21 @@ class EmsAPI(object):
         """
         data = API_CALC_OPTIONS
         data.update(payload)
-        
+
         res = []
-        
+
         try:
             res = self.call('calculate', data, True)
         except EmsAPIException as e:
             return None, e
         return res, 0
-    
+
     def get_max_weight(self):
         """
         Return maximum weight per package (in kg)
         """
         res = []
-        
+
         try:
             res = self.call('maxweight', {}, True)
         except EmsAPIException as e:
